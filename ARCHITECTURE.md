@@ -115,6 +115,21 @@ These are point-in-time metrics. Structured JSON logging,
 duplicate-detection counters, lock-conflict counters and
 dedicated fault-injection metrics remain incomplete.
 
+### Structured HTTP logging
+
+A global NestJS interceptor emits JSON-formatted HTTP request logs
+containing timestamp, severity, correlation ID, method, path,
+HTTP status and request duration.
+
+Provider, wallet and transaction identifiers are included when
+available. Idempotent replay information is also recorded.
+
+Full request bodies and financial amounts are deliberately excluded.
+
+Current limitation: SQS consumers, Outbox publishers and background
+workers still use NestJS's default logging rather than a unified
+structured logging system.
+
 ## 11. Testing evidence
 
 Automated:

@@ -146,3 +146,14 @@ than in-memory counters.
 
 The endpoint is intended for local evaluation and should be
 protected before exposing the service in production.
+
+## Structured HTTP logs
+
+HTTP requests produce JSON-formatted audit logs containing a
+correlation ID, method, endpoint, status and execution duration.
+
+Clients may provide the `X-Correlation-Id` header. When it is
+missing or invalid, the application generates a UUID and returns
+it in the response header.
+
+Financial payloads are not included in these logs.
