@@ -41,6 +41,7 @@ The API listens on `http://127.0.0.1:3000` by default. The startup expects the P
 ```powershell
 Invoke-RestMethod http://127.0.0.1:3000/health/live
 Invoke-RestMethod http://127.0.0.1:3000/health/ready
+Invoke-RestMethod http://127.0.0.1:3000/health/metrics | ConvertTo-Json -Depth 6
 ```
 
 Readiness checks PostgreSQL and the wager request SQS queue.
@@ -130,33 +131,22 @@ Money is represented by a decimal string in API contracts and by a `bigint`-back
 
 ## Important limitations
 
-This is a challenge implementation, **not production-ready software**. Authentication was omitted as an intentional scope decision; only BRL is accepted. The current version includes HTTP JSON logging and basic operational
-metrics, but structured background-worker logging, some operational
-counters, and comprehensive fault-injection coverage remain incomplete. The included PostgreSQL credentials are **development-only example values** in `compose.yaml` and `.env.example`, not production secrets. For design decisions and caveats, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+This is a challenge implementation, **not production-ready software**. Authentication was omitted as an intentional scope decision; only BRL is accepted. The current version includes HTTP JSON logging and basic operational metrics, but structured logging for background workers, some operational counters, and comprehensive fault-injection coverage remain incomplete.
+
+The included PostgreSQL credentials are **development-only example values** in `compose.yaml` and `.env.example`, not production secrets. For design decisions and caveats, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Operational metrics
 
-The application exposes operational metrics at:
+The application exposes operational metrics at `GET /health/metrics`.
 
-GET /health/metrics
+The endpoint reports transaction counts by status, Outbox publication state and lag, pending-reference retry attempts, average processing latency, and approximate DLQ message count.
 
-The endpoint reports transaction counts by status, Outbox
-publication state and lag, pending-reference retry attempts,
-average processing latency and approximate DLQ message count.
-
-These metrics are derived from PostgreSQL and SQS state rather
-than in-memory counters.
-
-The endpoint is intended for local evaluation and should be
-protected before exposing the service in production.
+These metrics are derived from PostgreSQL and SQS state rather than in-memory counters. The endpoint is intended for local evaluation and should be protected before exposing the service in production.
 
 ## Structured HTTP logs
 
-HTTP requests produce JSON-formatted audit logs containing a
-correlation ID, method, endpoint, status and execution duration.
+HTTP requests produce JSON-formatted audit logs containing a correlation ID, method, endpoint, status, and execution duration.
 
-Clients may provide the `X-Correlation-Id` header. When it is
-missing or invalid, the application generates a UUID and returns
-it in the response header.
+Clients may provide the `X-Correlation-Id` header. When it is missing or invalid, the application generates a UUID and returns it in the response header.
 
 Financial payloads are not included in these logs.

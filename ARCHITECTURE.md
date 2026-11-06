@@ -94,6 +94,7 @@ Implemented endpoints:
 - `GET /providers/:providerId/wagering/transactions/:externalTransactionId`
 - `GET /health/live`
 - `GET /health/ready`
+- `GET /health/metrics`
 
 Ledger pagination uses a Base64URL-encoded cursor built from `(createdAt, id)` and orders records by those two fields. The cursor is opaque to callers but not cryptographically protected. The reconciliation endpoint exposes stored, calculated, and difference balances and returns a consistency flag.
 
@@ -101,74 +102,39 @@ The readiness check verifies PostgreSQL and the wager-request SQS queue; livenes
 
 ## 10. Observability
 
-Current observability includes NestJS logs, a separate liveness route, and a readiness route that tests PostgreSQL and SQS connectivity. Divergence during reconciliation is logged.
+Current observability includes NestJS logs, JSON-formatted HTTP request logs, a liveness route, and a readiness route that checks PostgreSQL and SQS connectivity. Divergence during reconciliation is logged.
 
-**Remaining limitations:** Structured JSON logging is currently
-implemented for HTTP requests, but background workers, SQS consumers,
-and Outbox publishers still use NestJS's default logging.
-
-Operational metrics are available at GET /health/metrics.
-Dedicated counters for duplicate detection, lock conflicts, and
-complete fault-injection diagnostics remain incomplete.
-
-An operational metrics endpoint (`GET /health/metrics`) reports
-transaction counts by status, Outbox pending/published counts,
-oldest pending event age, accumulated pending-reference retry
-attempts, average transaction processing latency, and approximate
-DLQ message count.
-
-These are point-in-time metrics. Structured JSON logging,
-duplicate-detection counters, lock-conflict counters and
-dedicated fault-injection metrics remain incomplete.
+The `GET /health/metrics` endpoint reports transaction counts by status, Outbox pending/published counts, oldest pending event age, accumulated pending-reference retry attempts, average transaction processing latency, and approximate DLQ message count. These are point-in-time metrics derived from PostgreSQL and SQS state.
 
 ### Structured HTTP logging
 
-A global NestJS interceptor emits JSON-formatted HTTP request logs
-containing timestamp, severity, correlation ID, method, path,
-HTTP status and request duration.
+A global NestJS interceptor emits JSON-formatted HTTP request logs containing timestamp, severity, correlation ID, method, path, HTTP status, and request duration.
 
-Provider, wallet and transaction identifiers are included when
-available. Idempotent replay information is also recorded.
+Provider, wallet, and transaction identifiers are included when available. Idempotent replay information is also recorded. Full request bodies and financial amounts are deliberately excluded.
 
-Full request bodies and financial amounts are deliberately excluded.
-
-Current limitation: SQS consumers, Outbox publishers and background
-workers still use NestJS's default logging rather than a unified
-structured logging system.
+**Remaining limitations:** SQS consumers, Outbox publishers, and background workers still use NestJS's default logging rather than a unified structured logging system. Dedicated counters for duplicate detection and lock conflicts, comprehensive fault-injection diagnostics, and operational dashboards remain incomplete.
 
 ## 11. Testing evidence
 
-Automated:
+Automated (14 passing tests in the latest local run):
 
-- `src/domain/money.spec.ts`: 6 passing Money tests (Vitest).
-- `test/wagering.integration.test.ts`: 2 passing HTTP/database integration tests (idempotency and contested wallet balance).
-- `test/distributed-concurrency.test.ts`: 2 passing tests against three running app processes (contested funds and 50 identical parallel requests).
-- `test/financial-reversals.test.ts`: 4 passing integration tests
-  covering REFUND, ROLLBACK, insufficient funds, and out-of-order
-  reference recovery.
+- `src/domain/money.spec.ts`: 6 Money tests (Vitest).
+- `test/wagering.integration.test.ts`: 2 HTTP/database integration tests (idempotency and contested wallet balance).
+- `test/financial-reversals.test.ts`: 4 integration tests covering REFUND, ROLLBACK of a WIN, insufficient balance on ROLLBACK, and out-of-order REFUND recovery.
+- `test/distributed-concurrency.test.ts`: 2 tests against three running application processes (contested funds and 50 identical parallel requests).
 
 Manually verified:
 
 - opening and wager ledger entries; stored balance equaling ledger reconstruction;
-- BET, WIN, LOSS, REFUND, and ROLLBACK basic flow;
-- `PENDING_REFERENCE` REFUND resolved after the referenced BET arrived;
-- SQS wager message processed with persisted inbox state;
-- replayed message produced no additional debit in the observed run;
-- Outbox publication verified with 333 published events and zero
-  pending events during the latest messaging test.
-- PostgreSQL rejected attempts to update an existing ledger entry;
-- health/live and health/ready returned successful responses.
+- BET, WIN, LOSS, REFUND, and ROLLBACK basic flows;
+- SQS wager message processing with persisted inbox state;
+- replayed SQS message producing no additional debit in the observed run;
+- Outbox publication showing 333 published events and zero pending events in the latest observed metrics snapshot;
+- PostgreSQL rejecting an attempt to update an existing immutable ledger entry;
+- `GET /health/live`, `GET /health/ready`, and `GET /health/metrics` returning successful responses;
+- an SQS message queued while all NestJS instances were stopped being processed after restart: wallet balance 75.00 BRL, version 2, and ledger reconciliation with zero difference.
 
-These checks were run against local services rather than all being encoded as repeatable CI tests. Pending tests include rollback/refund edge cases, mismatched references, database failures mid-transaction, missing-message expiration, cross-instance crash-after-commit-before-ack, concurrent publishers, DLQ, independent wallets under load, and restart recovery.
-
-Additional automated tests cover REFUND reversal and duplicate
-prevention, ROLLBACK of a WIN, rejection of a ROLLBACK that would
-cause a negative balance, and recovery of an out-of-order REFUND.
-
-An additional manual recovery test verified that an SQS message
-queued while all NestJS instances were stopped was processed
-after restart. The wallet ended at 75.00 BRL with version 2,
-and ledger reconciliation reported no difference.
+These checks were run against local services rather than all being encoded as repeatable CI tests. Remaining test gaps include mismatched references, database failures mid-transaction, reference expiration, crash-after-commit-before-ack, concurrent publishers, DLQ redrive, independent wallets under sustained load, and repeatable automated restart-recovery fault injection.
 
 ## 12. Security, deployment, and limitations
 
