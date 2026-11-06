@@ -96,6 +96,7 @@ While the NestJS application is running on port 3000:
 ```powershell
 bunx vitest run src/domain/money.spec.ts
 bun test test/wagering.integration.test.ts
+bun test test/financial-reversals.test.ts
 ```
 
 The distributed test requires **three** running application processes using the same PostgreSQL and MiniStack infrastructure. Stop the single dev instance first, build, then run each command in its own terminal:
@@ -129,7 +130,9 @@ Money is represented by a decimal string in API contracts and by a `bigint`-back
 
 ## Important limitations
 
-This is a challenge implementation, **not production-ready software**. Authentication was omitted as an intentional scope decision; only BRL is accepted. The current version has incomplete structured metrics/logging and fault-injection coverage. The included PostgreSQL credentials are **development-only example values** in `compose.yaml` and `.env.example`, not production secrets. For design decisions and caveats, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+This is a challenge implementation, **not production-ready software**. Authentication was omitted as an intentional scope decision; only BRL is accepted. The current version includes HTTP JSON logging and basic operational
+metrics, but structured background-worker logging, some operational
+counters, and comprehensive fault-injection coverage remain incomplete. The included PostgreSQL credentials are **development-only example values** in `compose.yaml` and `.env.example`, not production secrets. For design decisions and caveats, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 
 ## Operational metrics
 

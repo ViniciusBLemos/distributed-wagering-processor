@@ -103,7 +103,13 @@ The readiness check verifies PostgreSQL and the wager-request SQS queue; livenes
 
 Current observability includes NestJS logs, a separate liveness route, and a readiness route that tests PostgreSQL and SQS connectivity. Divergence during reconciliation is logged.
 
-**Incomplete relative to the challenge:** structured JSON logs with consistent correlation/message/transaction/provider/wallet identifiers, metrics for statuses, duplicates, retries, DLQ, lock conflicts, outbox lag, and processing latency; and dedicated operational dashboards.
+**Remaining limitations:** Structured JSON logging is currently
+implemented for HTTP requests, but background workers, SQS consumers,
+and Outbox publishers still use NestJS's default logging.
+
+Operational metrics are available at GET /health/metrics.
+Dedicated counters for duplicate detection, lock conflicts, and
+complete fault-injection diagnostics remain incomplete.
 
 An operational metrics endpoint (`GET /health/metrics`) reports
 transaction counts by status, Outbox pending/published counts,
@@ -137,6 +143,9 @@ Automated:
 - `src/domain/money.spec.ts`: 6 passing Money tests (Vitest).
 - `test/wagering.integration.test.ts`: 2 passing HTTP/database integration tests (idempotency and contested wallet balance).
 - `test/distributed-concurrency.test.ts`: 2 passing tests against three running app processes (contested funds and 50 identical parallel requests).
+- `test/financial-reversals.test.ts`: 4 passing integration tests
+  covering REFUND, ROLLBACK, insufficient funds, and out-of-order
+  reference recovery.
 
 Manually verified:
 
@@ -145,7 +154,8 @@ Manually verified:
 - `PENDING_REFERENCE` REFUND resolved after the referenced BET arrived;
 - SQS wager message processed with persisted inbox state;
 - replayed message produced no additional debit in the observed run;
-- nine Outbox events marked as published;
+- Outbox publication verified with 333 published events and zero
+  pending events during the latest messaging test.
 - PostgreSQL rejected attempts to update an existing ledger entry;
 - health/live and health/ready returned successful responses.
 
@@ -173,5 +183,6 @@ and ledger reconciliation reported no difference.
 1. Harden environment configuration for production: require nonempty secrets, validate configuration on boot, and use a proper secret manager outside local development.
 2. Add repeatable error-injection and recovery tests, including kill-after-commit-before-ack and DLQ flow.
 3. Expand automated business-rule, reconciliation, and migration tests.
-4. Add structured logs and metrics; improve domain model encapsulation.
+4. Extend structured logging to SQS consumers and background workers,
+   and add missing operational counters.
 5. Containerize the application itself with an explicit dependency/readiness startup sequence.
