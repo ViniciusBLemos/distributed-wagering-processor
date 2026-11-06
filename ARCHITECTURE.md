@@ -105,6 +105,16 @@ Current observability includes NestJS logs, a separate liveness route, and a rea
 
 **Incomplete relative to the challenge:** structured JSON logs with consistent correlation/message/transaction/provider/wallet identifiers, metrics for statuses, duplicates, retries, DLQ, lock conflicts, outbox lag, and processing latency; and dedicated operational dashboards.
 
+An operational metrics endpoint (`GET /health/metrics`) reports
+transaction counts by status, Outbox pending/published counts,
+oldest pending event age, accumulated pending-reference retry
+attempts, average transaction processing latency, and approximate
+DLQ message count.
+
+These are point-in-time metrics. Structured JSON logging,
+duplicate-detection counters, lock-conflict counters and
+dedicated fault-injection metrics remain incomplete.
+
 ## 11. Testing evidence
 
 Automated:
@@ -125,6 +135,15 @@ Manually verified:
 - health/live and health/ready returned successful responses.
 
 These checks were run against local services rather than all being encoded as repeatable CI tests. Pending tests include rollback/refund edge cases, mismatched references, database failures mid-transaction, missing-message expiration, cross-instance crash-after-commit-before-ack, concurrent publishers, DLQ, independent wallets under load, and restart recovery.
+
+Additional automated tests cover REFUND reversal and duplicate
+prevention, ROLLBACK of a WIN, rejection of a ROLLBACK that would
+cause a negative balance, and recovery of an out-of-order REFUND.
+
+An additional manual recovery test verified that an SQS message
+queued while all NestJS instances were stopped was processed
+after restart. The wallet ended at 75.00 BRL with version 2,
+and ledger reconciliation reported no difference.
 
 ## 12. Security, deployment, and limitations
 

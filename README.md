@@ -130,3 +130,19 @@ Money is represented by a decimal string in API contracts and by a `bigint`-back
 ## Important limitations
 
 This is a challenge implementation, **not production-ready software**. Authentication was omitted as an intentional scope decision; only BRL is accepted. The current version has incomplete structured metrics/logging and fault-injection coverage. The included PostgreSQL credentials are **development-only example values** in `compose.yaml` and `.env.example`, not production secrets. For design decisions and caveats, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+## Operational metrics
+
+The application exposes operational metrics at:
+
+GET /health/metrics
+
+The endpoint reports transaction counts by status, Outbox
+publication state and lag, pending-reference retry attempts,
+average processing latency and approximate DLQ message count.
+
+These metrics are derived from PostgreSQL and SQS state rather
+than in-memory counters.
+
+The endpoint is intended for local evaluation and should be
+protected before exposing the service in production.
