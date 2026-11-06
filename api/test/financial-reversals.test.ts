@@ -246,3 +246,74 @@ test('ROLLBACK rejects insufficient balance', async () => {
 
   console.log('ROLLBACK insufficient balance: OK');
 }, 30000);
+
+
+test('REFUND resolves when BET arrives later', async () => {
+  const wallet = await createWallet();
+
+  const betId = randomUUID();
+  const refundId = randomUUID();
+
+  const pending = await submit(
+    wager(
+      wallet,
+      'REFUND',
+      '40.00',
+      refundId,
+      betId,
+    ),
+    refundId,
+  );
+
+  expect(pending.http).toBe(202);
+  expect(pending.data.status).toBe('PENDING_REFERENCE');
+  expect(await getBalance(wallet.id)).toBe('100.00');
+
+  // The referenced BET arrives afterwards.
+  const betResult = await submit(
+    wager(wallet, 'BET', '40.00', betId),
+    betId,
+  );
+
+  expect(betResult.http).toBe(200);
+  expect(betResult.data.status).toBe('PROCESSED');
+
+  let finalStatus = '';
+
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const response = await fetch(
+      `${API}/wagering/transactions/${pending.data.transactionId}`,
+    );
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const transaction = (await response.json()) as {
+      status: string;
+      failureCode?: string;
+    };
+
+    finalStatus = transaction.status;
+
+    if (finalStatus === 'PROCESSED') {
+      break;
+    }
+
+    if (finalStatus === 'REJECTED') {
+      throw new Error(
+        `Pending REFUND rejected: ${transaction.failureCode}`,
+      );
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  expect(finalStatus).toBe('PROCESSED');
+
+  expect(await getBalance(wallet.id)).toBe('100.00');
+
+  await assertReconciliation(wallet.id);
+
+  console.log('Out-of-order REFUND recovery: OK');
+}, 45000);
